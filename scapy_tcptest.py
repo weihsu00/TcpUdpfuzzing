@@ -39,6 +39,8 @@ class TcpHandshake():
 	def send_syn(self):
 		print("[*] Send:\t SYN")
 		self.packet.flags = "S"
+		if args.case in [7,8,12,13,15,16]:
+			self.forge_syn_packet()
 		# 2 MSS 		len4
 		# 3 WScale  	len3
 		# 4 SAckOK 		len2
@@ -47,7 +49,7 @@ class TcpHandshake():
 		# 9 POCP 		len2
 		# 14 AltChkSum 	len3
 		# 15 AltChkSumOpt 	lenN
-		self.packet.options = self.options_handler()
+		# self.packet.options = self.options_handler()
 		response, unans = sr(self.ipheader/self.packet, timeout=2, verbose=0)
 		self.packet.seq += 1
 		if response:
@@ -65,6 +67,9 @@ class TcpHandshake():
 		print("[*] Send:\t ACK")
 		self.packet.ack = res_packet[TCP].seq+1
 		self.packet.flags = "A"
+		if args.case == 13:
+			self.packet.options = self.options_handler("ack")
+
 		send(self.ipheader/self.packet, verbose=0)
 		return True
 	
@@ -145,10 +150,77 @@ class TcpHandshake():
 		rst_packet = TCP(sport=self.sport, dport=self.dport, flags="RA", seq=self.packet.seq, ack=self.packet.ack)
 		send(self.ipheader/rst_packet, verbose=0)
 
+	def forge_syn_packet(self):
+		if args.case:
+			if args.case == 7:
+				self.packet.options = self.options_handler("syn")
+			if args.case == 8:
+				self.packet.sport = self.dport
+				self.ipheader.src = self.dst
+			if args.case == 12:	
+				self.packet.options = self.options_handler("syn")
+			if args.case == 13:
+				self.packet.options = self.options_handler("syn")
+			if args.case == 15:
+				self.packet.dport = random.choice([0x0000, 0xffff])
+			if args.case == 16:
+				pass
+
+
 		
 	def forge_packet(self):
 		if args.case:
 			if args.case == 2:
+				self.packet.flags = "PA"
+				self.packet.dataofs = random.randint(0,4)
+			elif args.case == 3:
+				self.packet.flags = "PA"
+				self.packet.dataofs = random.randint(6,15)
+			elif args.case == 4:
+				self.packet.flags = "UPA"
+				randx = random.randint(1, 65495)
+				self.payload = os.urandom(randx)
+				self.packet.urgptr = random.randint(randx, 65535)
+			elif args.case == 5:
+				self.packet.flags = "PA"
+				self.packet.chksum = random.randint(0,65535)
+			elif args.case == 6:
+				self.packet.flags = "PA"
+				randx = random.randint(6,15)
+				self.packet.dataofs = randx
+				self.payload = os.urandom((randx-5)*4)
+			elif args.case == 9:
+				self.packet.flags = random.randint(0,511)
+				self.packet.reserved = random.randint(0,7)
+			elif args.case == 10:
+				self.packet.flags = "PA"
+				self.packet.window = random.randint(0, 65535)
+				self.payload = os.urandom(random.randint(0, 65495))
+				# need reset??
+			elif args.case == 11:
+				self.packet.flags = "PA"
+				self.packet.seq = random.getrandbits(32)
+				self.payload = os.urandom(random.randint(0, 65495))
+			elif args.case == 12:
+				self.packet.flags = "PA"
+				self.packet.options = self.options_handler("packet")
+				self.payload = os.urandom(random.randint(0, 65495))
+			elif args.case == 13:
+				self.packet.flags = "PA"
+				self.packet.options = self.options_handler("packet")
+				self.payload = os.urandom(random.randint(0, 65495))
+			elif args.case == 14:
+				pass
+			elif args.case == 16:
+				self.packet.flags = "PA"
+				self.payload = os.urandom(random.randint(0, 65495))
+			elif args.case == 17:
+				self.packet.flags = "UPA"
+				self.payload = os.urandom(65495)
+				self.packet.urgptr = 65495
+			else:
+				self.packet.flags = "PA"
+				self.payload = "KKKK"
 
 		elif args.rand:
 			self.packet.reserved = random.randint(0,7)
@@ -160,19 +232,19 @@ class TcpHandshake():
 			self.packet.flags = "PA"
 			self.payload = "KKKK"
 		else:
-			# self.packet.dataofs = 6
+			# self.packet.dataofs = 15
 			# self.packet.reserved = 0
 			# self.packet.seq += 100 
 			self.packet.flags = "PA"
 			# self.packet.window = 0
 			# self.packet.chksum = 0xffff
 			# self.packet.urgptr = 100
-			self.packet.options = self.options_handler()
-			# self.packet.options = [(8, os.urandom(8)), (9, '\x12\x34\x56\x78')]
+			# self.packet.options = self.options_handler()
 			self.payload = "KKKK"
+			# self.payload = os.urandom(65400)
 			# self.payload = self.payload_handler()
 
-	def options_handler(self):
+	def options_handler(self, sign):
 		# Choose random options from:
 		# 2 MSS 		len4
 		# 3 WScale  	len3
@@ -182,31 +254,52 @@ class TcpHandshake():
 		# 9 POCP 		len2
 		# 14 AltChkSum 	len3
 		# 15 AltChkSumOpt 	lenN
-		crt_options = [2, 3, 4, 5, 8, 9, 14]
-		choices = random.sample(crt_options, random.randint(0, len(crt_options)-1))
+		optlist = []
 		ws_shift = ['\x00', '\x01', '\x02', '\x03', '\x04', '\x05', '\x06', '\x07', '\x08', '\x09', '\x0a', '\x0b','\x0c', '\x0d', '\x0e' ]
 		altchk_type = ['\x01', '\x02']
-		optlist = []
-		for op in choices:
-			if op == 2:
-				optlist.append((op, os.urandom(2)))
-			elif op == 3:
-				optlist.append((op, random.choice(ws_shift)))
-			elif op == 4:
-				optlist.append((op, b''))
-			elif op == 5:
-				optlist.append((op, os.urandom(16)))
-			elif op == 8:
-				optlist.append((op, os.urandom(8)))
-			elif op == 9:
-				optlist.append((op, b''))
-			elif op == 14:
-				optlist.append((op, random.choice(altchk_type)))
-			# else:
-			# 	optlist.append((op, os.urandom(6)))
-		# print(optlist)
+		# Forging SYN
+		if sign == "syn":
+			if args.case == 7:
+				crt_options = [2,3,4,9,14]
+				# crt_options = [2, 3, 4, 5, 8, 9, 14]
+				choices = random.sample(crt_options, random.randint(1, len(crt_options)))
+				for op in choices:
+					if op == 2:
+						optlist.append((op, os.urandom(2)))
+					elif op == 3:
+						optlist.append((op, random.choice(ws_shift)))
+					elif op == 4:
+						optlist.append((op, b''))
+					elif op == 5:
+						optlist.append((op, os.urandom(16)))
+					elif op == 8:
+						optlist.append((op, os.urandom(8)))
+					elif op == 9:
+						optlist.append((op, b''))
+					elif op == 14:
+						optlist.append((op, random.choice(altchk_type)))
+					# else:
+					# 	optlist.append((op, os.urandom(6)))
+				# print(optlist)
+			elif args.case == 12:
+				optlist.append((4, b''))
+			elif args.case == 13:
+				optlist.append((8, os.urandom(8)))
+
+
+		#  Forging packet
+		elif sign == "packet":
+			if args.case == 12:
+				optlist.append((5, os.urandom(16)))
+			elif args.case == 13:
+				optlist.append((8, os.urandom(8)))
+		elif sign == "ack":
+			if args.case == 13:
+				optlist.append((8, os.urandom(8)))
+
 
 		return optlist
+
 
 	def payload_handler(self):
 		# rand_payload = ''.join(random.choice(ascii_letters) for i in range(random.randint(1, 65535)))

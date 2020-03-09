@@ -1,7 +1,7 @@
 from scapy.all import *
 from argparse import ArgumentParser
-from string import ascii_letters
 import socket
+import time
 import random
 import sys
 import os
