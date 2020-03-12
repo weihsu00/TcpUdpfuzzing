@@ -18,7 +18,7 @@ class TcpHandshake():
 		self.ipheader = IP(dst=self.dst, src=self.src)
 		self.packet = TCP(sport=self.sport, dport=self.dport, flags=0, seq=random.randrange(0,2**32))
 		self.payload = ""
-		if args.case not in flooding_cases:
+		if args.Tcase not in flooding_cases:
 			print("[*] Initializing TcpHandshake on ", self.dst, ":", self.dport)
 
 	def recv_handler(self, res_packet):
@@ -46,7 +46,7 @@ class TcpHandshake():
 	def send_syn(self):
 		print("[*] Send:\t SYN")
 		self.packet.flags = "S"
-		if args.case in [7,8,12,13,15,16]:
+		if args.Tcase in [7,8,12,13,15,16]:
 			self.forge_syn_packet()
 		# 2 MSS 		len4
 		# 3 WScale  	len3
@@ -74,7 +74,7 @@ class TcpHandshake():
 		print("[*] Send:\t ACK")
 		self.packet.ack = res_packet[TCP].seq+1
 		self.packet.flags = "A"
-		if args.case == 13:
+		if args.Tcase == 13:
 			self.packet.options = self.options_handler("ack")
 
 		send(self.ipheader/self.packet, verbose=0)
@@ -99,11 +99,11 @@ class TcpHandshake():
 			self.packet.seq += len(self.payload)
 			# response[0][0] is the packet sent, response[0][1] is the response from the DUT
 			# response = sniff(filter = "ip src %s and tcp and tcp port %d" % (self.dst,self.dport), count=1, timeout = 2)
-
+			
 			# print(response.summary())
 			print(response[0][0][TCP].show())
-			# print(type(response[0][0][TCP]))
 			print(hexdump(response[0][0]))
+			# print(type(response[0][0][TCP]))			
 			# print(response[0][1])
 			# print(response[0][1][TCP].flags)
 			return self.recv_handler(response[0][1])
@@ -131,7 +131,6 @@ class TcpHandshake():
 			self.packet.flags = "A"
 			response1, unans1 = sr(self.ipheader/self.packet,timeout=0.1, verbose=0)
 			if response1 and response1[0][1][TCP].flags == "A":
-				# print("in else")
 				print(response1.summary())
 				return False
 			else:
@@ -168,74 +167,74 @@ class TcpHandshake():
 		send(self.ipheader/rst_packet, verbose=0)
 
 	def forge_syn_packet(self):
-		if args.case:
-			if args.case == 7:
+		if args.Tcase:
+			if args.Tcase == 7:
 				self.packet.options = self.options_handler("syn")
-			if args.case == 8:
+			if args.Tcase == 8:
 				self.packet.sport = self.dport
 				self.ipheader.src = self.dst
-			if args.case == 12:	
+			if args.Tcase == 12:	
 				self.packet.options = self.options_handler("syn")
-			if args.case == 13:
+			if args.Tcase == 13:
 				self.packet.options = self.options_handler("syn")
-			if args.case == 15:
+			if args.Tcase == 15:
 				self.packet.dport = random.choice([0x0000, 0xffff])
-			if args.case == 16:
+			if args.Tcase == 16:
 				pass
 		
 	def forge_packet(self):
-		if args.case:
+		if args.Tcase:
 			self.packet.flags = "PA"
-			if args.case == 2:
+			if args.Tcase == 2:
 				self.packet.dataofs = random.randint(0,4)
-			elif args.case == 3:				
+			elif args.Tcase == 3:				
 				self.packet.dataofs = random.randint(6,15)
-			elif args.case == 4:
+			elif args.Tcase == 4:
 				self.packet.flags = "UPA"
 				randx = random.randint(1, 65495)
 				self.payload = os.urandom(randx)
 				self.packet.urgptr = random.randint(randx, 65535)
-			elif args.case == 5:
+			elif args.Tcase == 5:
 				self.packet.chksum = random.randint(0,65535)
-			elif args.case == 6:				
+			elif args.Tcase == 6:				
 				randx = random.randint(6,15)
 				self.packet.dataofs = randx
 				self.payload = os.urandom((randx-5)*4)
-			elif args.case == 9:
+			elif args.Tcase == 9:
 				self.packet.flags = random.randint(0,511)
 				self.packet.reserved = random.randint(0,7)
-			elif args.case == 10:
+			elif args.Tcase == 10:
 				self.packet.window = random.randint(0, 65535)
 				self.payload = os.urandom(random.randint(0, 65495))
 				# need reset??
-			elif args.case == 11:				
+			elif args.Tcase == 11:				
 				self.packet.seq = random.getrandbits(32)
 				self.payload = os.urandom(random.randint(0, 65495))
-			elif args.case == 12:				
+			elif args.Tcase == 12:				
 				self.packet.options = self.options_handler("packet")
 				self.payload = os.urandom(random.randint(0, 65495))
-			elif args.case == 13:				
+			elif args.Tcase == 13:				
 				self.packet.options = self.options_handler("packet")
 				self.payload = os.urandom(random.randint(0, 65495))
 				# self.payload = "KKKK"
-			elif args.case == 14:
+			elif args.Tcase == 14:
 				self.packet.flags = "UPA"
 				randx = random.randint(0, 65495)
 				self.payload = os.urandom(randx)
 				self.packet.urgptr = random.choice([0, random.randint(1, randx-1), randx])
-			elif args.case == 16:				
+			elif args.Tcase == 16:				
 				self.payload = os.urandom(random.randint(0, 65495))
-			elif args.case == 17:
+			elif args.Tcase == 17:
 				self.packet.flags = "UPA"
 				self.payload = os.urandom(65495)
 				self.packet.urgptr = 65495
-			elif args.case == 20:
+			elif args.Tcase == 20:
 				self.packet.seq += 100
 				self.payload = "KKKK"
-			elif args.case == 21:
+			elif args.Tcase == 21:
 				self.packet.window = 0 
 				self.payload = "KKKK"
-			elif args.case == 23:
+			elif args.Tcase == 23:
 				self.packet.flags = "F"
 			else:
 				self.packet.flags = "PA"
@@ -278,7 +277,7 @@ class TcpHandshake():
 		altchk_type = ['\x01', '\x02']
 		# Forging SYN
 		if sign == "syn":
-			if args.case == 7:
+			if args.Tcase == 7:
 				crt_options = [2,3,4,9,14]
 				# crt_options = [2, 3, 4, 5, 8, 9, 14]
 				choices = random.sample(crt_options, random.randint(1, len(crt_options)))
@@ -300,18 +299,18 @@ class TcpHandshake():
 					# else:
 					# 	optlist.append((op, os.urandom(6)))
 				# print(optlist)
-			elif args.case == 12:
+			elif args.Tcase == 12:
 				optlist.append((4, b''))
-			elif args.case == 13:
+			elif args.Tcase == 13:
 				optlist.append((8, os.urandom(8)))
 		#  Forging packet
 		elif sign == "packet":
-			if args.case == 12:
+			if args.Tcase == 12:
 				optlist.append((5, os.urandom(16)))
-			elif args.case == 13:
+			elif args.Tcase == 13:
 				optlist.append((8, os.urandom(8)))
 		elif sign == "ack":
-			if args.case == 13:
+			if args.Tcase == 13:
 				optlist.append((8, os.urandom(8)))
 		return optlist
 
@@ -341,18 +340,21 @@ class TcpHandshake():
 		# Send :	PSH+ACK
 		# self.send_finack_ack()
 	def flooding_packet(self):
-		if args.case == 18:
-			self.packet.flags = "S"
-			send(self.ipheader/self.packet, verbose=0, inter=0.0001)
-		elif args.case == 19:
-			self.send_syn()
-		elif args.case == 20 or args.case == 21:
+		if args.Tcase == 17:
 			self.send_syn()
 			self.send_payload()
-		elif args.case == 22:
+		elif args.Tcase == 18:
+			self.packet.flags = "S"
+			send(self.ipheader/self.packet, verbose=0, inter=0.0001)
+		elif args.Tcase == 19:
+			self.send_syn()
+		elif args.Tcase == 20 or args.Tcase == 21:
+			self.send_syn()
+			self.send_payload()
+		elif args.Tcase == 22:
 			self.send_syn()
 			self.send_rst()
-		elif args.case == 23:
+		elif args.Tcase == 23:
 			self.send_syn()
 			self.packet.flags = "F"
 			send(self.ipheader/self.packet, verbose=0)
@@ -370,43 +372,47 @@ if __name__=='__main__':
 	# sys.stdout = open("tcpresults/test.txt", "w")
 
 	parser = ArgumentParser()
-	parser.add_argument("-v", "--verbose", help="Show verbosity.", action="store_true")
+	parser.add_argument("-v", "--verbose", help="Show verbosity if set.", action="store_true")
 	parser.add_argument("-r", "--rand",help="Make packet random if set.", action="store_true")
 	parser.add_argument("-n", "--noraml", help="Normal SYN.", action="store_true")
-	parser.add_argument("-c", "--case", help="EDSA test cases.", type=int)
+	parser.add_argument("-T", "--Tcase", help="EDSA test cases.", type=int, choices=range(2,24))
+	# not over a amount of packets?
+	parser.add_argument("-c", "--count", help="How many packets to send(not for flooding cases).", type=int, default=1)
 	parser.add_argument("destIP", help="Destination device IP.", type=str)
 	parser.add_argument("destPort", help="Destination device port.", type=int)
 	args = parser.parse_args()
-
-	os.system("iptables -A OUTPUT -p tcp --tcp-flags RST RST -s "+local_ip+" -j DROP")
+	try:
+		os.system("iptables -A OUTPUT -p tcp --tcp-flags RST RST -s "+local_ip+" -j DROP")
+	except:
+		pass
 	DUT_ip = args.destIP
 	DUT_port = args.destPort
-	flooding_cases = [18,19,20,21,22,23]
+	start_port = random.randrange(49152, 2**16-args.count)
+	flooding_cases = [17,18,19,20,21,22,23]
 	
 	print("[*] Configuration Status: ")
 	print("verbose is:\t", args.verbose)
 	print("rand is:\t", args.rand)
-	print("case number:\t", args.case)
+	print("case number:\t", args.Tcase)
+	print("packets send:\t", args.count)
 	
 	print("[*] Starting packet send...")
 	time.sleep(1)
 
-	if args.case in flooding_cases:
+	if args.Tcase in flooding_cases:
 		print("[*] Flooding in progress...... Ctrl+C to terminate.")
-		start_port = 50000
-		# start_port = random.randrange(49152, 2**16)
+		start_port = 49152
 		start_ip = local_ip
 		for packet_num, port_num in enumerate(range(start_port, 2**16)):
-			# print("---------Packet %s -----------" % packet_num)
-			# print("[*] Local port number:", port_num)
 			tcp_hs = TcpHandshake(DUT_ip, start_ip, DUT_port, port_num)
 			tcp_hs.flooding_packet()
 
 	else:
-		port_num = random.randrange(49152, 2**16)
-		print("[*] Local port number:", port_num)
-		tcp_hs = TcpHandshake(DUT_ip, local_ip, DUT_port, port_num)
-		tcp_hs.start_handshake()
+		for packet_num, port_num in enumerate(range(start_port, start_port+args.count)):
+			print("---------Packet %s -----------" % packet_num)
+			print("[*] Local port number:", port_num)
+			tcp_hs = TcpHandshake(DUT_ip, local_ip, DUT_port, port_num)
+			tcp_hs.start_handshake()
 
 	print("[*] Session ended.")
 
